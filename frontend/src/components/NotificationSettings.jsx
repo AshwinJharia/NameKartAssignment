@@ -2,97 +2,172 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  IconButton,
+  DialogActions,
+  Button,
+  FormGroup,
+  FormControlLabel,
+  Switch,
   Typography,
   Box,
-  Divider,
-  Badge,
-} from '@mui/material';
-import {
-  Close as CloseIcon,
-  Circle as CircleIcon,
-  Notifications as NotificationsIcon,
-} from '@mui/icons-material';
+  Slider,
+  IconButton,
+  useTheme,
+} from "@mui/material";
+import { Close as CloseIcon } from "@mui/icons-material";
+import { useState } from "react";
+import axios from "axios";
+import toast from "react-hot-toast";
 
-export default function NotificationSettings({ open, onClose, notifications = [], onNotificationRead }) {
+export default function NotificationSettings({ open, onClose }) {
+  const theme = useTheme();
+  const [settings, setSettings] = useState({
+    enabled: true,
+    highPriority: true,
+    mediumPriority: true,
+    lowPriority: false,
+    reminderHours: 24,
+  });
+  const [loading, setLoading] = useState(false);
+
+  // Fetch current settings
+  const fetchSettings = async () => {
+    try {
+      const response = await axios.get(
+        "http://localhost:5000/api/users/notification-settings"
+      );
+      setSettings(response.data);
+    } catch (err) {
+      console.error("Error fetching notification settings:", err);
+      toast.error("Failed to load notification settings");
+    }
+  };
+
+  // Save settings
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      await axios.put(
+        "http://localhost:5000/api/users/notification-settings",
+        settings
+      );
+      toast.success("Notification settings saved successfully");
+      onClose();
+    } catch (err) {
+      console.error("Error saving notification settings:", err);
+      toast.error("Failed to save notification settings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (name) => (event) => {
+    setSettings((prev) => ({
+      ...prev,
+      [name]:
+        event.target.checked !== undefined
+          ? event.target.checked
+          : event.target.value,
+    }));
+  };
+
   return (
-    <Dialog 
-      open={open} 
-      onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-    >
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <NotificationsIcon />
-            <Typography variant="h6">
-              Notifications
-              {notifications.filter(n => !n.read).length > 0 && 
-                ` (${notifications.filter(n => !n.read).length} unread)`
-              }
-            </Typography>
-          </Box>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Typography variant="h6">Notification Settings</Typography>
           <IconButton onClick={onClose} size="small">
             <CloseIcon />
           </IconButton>
         </Box>
       </DialogTitle>
-
       <DialogContent>
-        {notifications.length === 0 ? (
-          <Box sx={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
-            gap: 2,
-            py: 4 
-          }}>
-            <NotificationsIcon sx={{ fontSize: 48, color: 'text.secondary' }} />
-            <Typography color="text.secondary">
-              No notifications yet
-            </Typography>
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={settings.enabled}
+                onChange={handleChange("enabled")}
+                color="primary"
+              />
+            }
+            label="Enable Notifications"
+          />
+
+          <Typography variant="subtitle1" sx={{ mt: 2, mb: 1 }}>
+            Notify me for tasks with priority:
+          </Typography>
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={settings.highPriority}
+                onChange={handleChange("highPriority")}
+                color="error"
+                disabled={!settings.enabled}
+              />
+            }
+            label="High Priority"
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={settings.mediumPriority}
+                onChange={handleChange("mediumPriority")}
+                color="warning"
+                disabled={!settings.enabled}
+              />
+            }
+            label="Medium Priority"
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                checked={settings.lowPriority}
+                onChange={handleChange("lowPriority")}
+                color="info"
+                disabled={!settings.enabled}
+              />
+            }
+            label="Low Priority"
+          />
+
+          <Typography variant="subtitle1" sx={{ mt: 2, mb: 1 }}>
+            Reminder Time
+          </Typography>
+
+          <Box sx={{ px: 2 }}>
+            <Slider
+              value={settings.reminderHours}
+              onChange={handleChange("reminderHours")}
+              min={1}
+              max={48}
+              step={1}
+              marks={[
+                { value: 1, label: "1h" },
+                { value: 24, label: "24h" },
+                { value: 48, label: "48h" },
+              ]}
+              valueLabelDisplay="auto"
+              valueLabelFormat={(value) => `${value}h before`}
+              disabled={!settings.enabled}
+            />
           </Box>
-        ) : (
-          <List>
-            {notifications.map((notification, index) => (
-              <Box key={notification._id}>
-                {index > 0 && <Divider />}
-                <ListItem
-                  onClick={() => !notification.read && onNotificationRead(notification._id)}
-                  sx={{
-                    cursor: !notification.read ? 'pointer' : 'default',
-                    bgcolor: !notification.read ? 'action.hover' : 'transparent',
-                    '&:hover': {
-                      bgcolor: !notification.read ? 'action.selected' : 'transparent',
-                    },
-                  }}
-                >
-                  <ListItemIcon>
-                    <Badge color="primary" variant="dot" invisible={notification.read}>
-                      <NotificationsIcon color={notification.read ? "disabled" : "primary"} />
-                    </Badge>
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={notification.message}
-                    secondary={new Date(notification.createdAt).toLocaleString()}
-                    primaryTypographyProps={{
-                      sx: { 
-                        fontWeight: notification.read ? 'normal' : 'bold',
-                        color: notification.read ? 'text.secondary' : 'text.primary',
-                      }
-                    }}
-                  />
-                </ListItem>
-              </Box>
-            ))}
-          </List>
-        )}
+        </FormGroup>
       </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={handleSave} variant="contained" disabled={loading}>
+          Save Changes
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 } 

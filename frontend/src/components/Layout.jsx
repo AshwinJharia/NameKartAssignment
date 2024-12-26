@@ -27,8 +27,7 @@ import {
   ChevronLeft as ChevronLeftIcon,
   AccountCircle as AccountCircleIcon,
 } from '@mui/icons-material';
-import { useAuth } from '../contexts/AuthContext';
-import NotificationList from './NotificationList';
+import { useAuth } from "../contexts/AuthContext";
 
 const drawerWidth = 240;
 
@@ -97,8 +96,6 @@ export default function Layout() {
           </IconButton>
 
           <Box sx={{ flexGrow: 1 }} />
-
-          <NotificationList />
 
           <IconButton
             onClick={handleProfileMenuOpen}

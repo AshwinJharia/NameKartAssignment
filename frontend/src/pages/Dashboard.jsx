@@ -21,9 +21,7 @@ import TaskColumn from '../components/TaskColumn';
 import TaskForm from '../components/TaskForm';
 import AiInsightPanel from '../components/AiInsightPanel';
 import NotificationSettings from '../components/NotificationSettings';
-
-// Initialize socket connection
-const socket = io('http://localhost:5000');
+import NotificationList from "../components/NotificationList";
 
 export default function Dashboard() {
   const theme = useTheme();
@@ -32,49 +30,66 @@ export default function Dashboard() {
   const [editingTask, setEditingTask] = useState(null);
   const [loading, setLoading] = useState(false);
   const [aiInsight, setAiInsight] = useState(null);
-  const [openNotificationSettings, setOpenNotificationSettings] = useState(false);
+  const [openNotificationSettings, setOpenNotificationSettings] =
+    useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [openNotificationList, setOpenNotificationList] = useState(false);
+  const [socket, setSocket] = useState(null);
+
+  // Initialize socket connection
+  useEffect(() => {
+    const newSocket = io("http://localhost:5000", {
+      transports: ["websocket"],
+      upgrade: false,
+    });
+
+    newSocket.on("connect", () => {
+      console.log("Connected to socket server");
+    });
+
+    newSocket.on("connect_error", (error) => {
+      console.error("Socket connection error:", error);
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      if (newSocket) newSocket.disconnect();
+    };
+  }, []);
 
   // Socket.IO event listeners
   useEffect(() => {
-    // Listen for new notifications
-    socket.on('notification', (notification) => {
-      setNotifications(prev => [notification, ...prev]);
-      // Show toast for new notifications
+    if (!socket) return;
+
+    socket.on("notification", (notification) => {
+      setNotifications((prev) => [notification, ...prev]);
       toast.success(notification.message, {
-        icon: '🔔',
+        icon: "🔔",
       });
     });
 
-    // Listen for task updates
-    socket.on('taskCreated', () => {
-      fetchTasks();
-    });
+    socket.on("taskCreated", fetchTasks);
+    socket.on("taskUpdated", fetchTasks);
+    socket.on("taskDeleted", fetchTasks);
 
-    socket.on('taskUpdated', () => {
-      fetchTasks();
-    });
-
-    socket.on('taskDeleted', () => {
-      fetchTasks();
-    });
-
-    // Cleanup on unmount
     return () => {
-      socket.off('notification');
-      socket.off('taskCreated');
-      socket.off('taskUpdated');
-      socket.off('taskDeleted');
+      socket.off("notification");
+      socket.off("taskCreated");
+      socket.off("taskUpdated");
+      socket.off("taskDeleted");
     };
-  }, []);
+  }, [socket]);
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/notifications');
+      const response = await axios.get(
+        "http://localhost:5000/api/notifications"
+      );
       setNotifications(response.data);
     } catch (err) {
-      console.error('Error fetching notifications:', err);
+      console.error("Error fetching notifications:", err);
     }
   }, []);
 
@@ -86,14 +101,14 @@ export default function Dashboard() {
   // Mark notification as read
   const handleNotificationRead = async (notificationId) => {
     try {
-      await axios.patch(`http://localhost:5000/api/notifications/${notificationId}/read`);
-      setNotifications(prev =>
-        prev.map(n =>
-          n._id === notificationId ? { ...n, read: true } : n
-        )
+      await axios.patch(
+        `http://localhost:5000/api/notifications/${notificationId}/read`
+      );
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === notificationId ? { ...n, read: true } : n))
       );
     } catch (err) {
-      console.error('Error marking notification as read:', err);
+      console.error("Error marking notification as read:", err);
     }
   };
 
@@ -101,11 +116,11 @@ export default function Dashboard() {
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:5000/api/tasks');
+      const response = await axios.get("http://localhost:5000/api/tasks");
       setTasks(response.data);
     } catch (err) {
-      toast.error('Failed to fetch tasks. Please try again.');
-      console.error('Error fetching tasks:', err);
+      toast.error("Failed to fetch tasks. Please try again.");
+      console.error("Error fetching tasks:", err);
     } finally {
       setLoading(false);
     }
@@ -119,12 +134,14 @@ export default function Dashboard() {
   const getAiInsights = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:5000/api/tasks/insights');
+      const response = await axios.get(
+        "http://localhost:5000/api/tasks/insights"
+      );
       setAiInsight(response.data);
-      toast.success('AI insights updated successfully!');
+      toast.success("AI insights updated successfully!");
     } catch (err) {
-      toast.error('Failed to get AI insights. Please try again.');
-      console.error('Error getting AI insights:', err);
+      toast.error("Failed to get AI insights. Please try again.");
+      console.error("Error getting AI insights:", err);
     } finally {
       setLoading(false);
     }
@@ -132,18 +149,17 @@ export default function Dashboard() {
 
   // Handle drag start
   const handleDragStart = () => {
-    document.body.style.cursor = 'grabbing';
+    document.body.style.cursor = "grabbing";
   };
 
   // Handle drag end
   const handleDragEnd = async (result) => {
-    document.body.style.cursor = 'default';
+    document.body.style.cursor = "default";
 
     if (!result.destination) return;
 
     const { source, destination, draggableId } = result;
-    
-    // Don't do anything if dropped in the same place
+
     if (
       source.droppableId === destination.droppableId &&
       source.index === destination.index
@@ -151,25 +167,21 @@ export default function Dashboard() {
       return;
     }
 
-    const task = tasks.find(t => t._id === draggableId);
+    const task = tasks.find((t) => t._id === draggableId);
     if (!task) return;
 
-    // Map droppable IDs to task statuses
     const statusMap = {
-      'completed': 'completed',
-      'pending': 'pending',
-      'dueToday': 'pending',
-      'overdue': 'pending'
+      completed: "completed",
+      pending: "pending",
+      dueToday: "pending",
+      overdue: "pending",
     };
 
-    // Determine the new status based on the destination
-    const newStatus = statusMap[destination.droppableId] || 'pending';
+    const newStatus = statusMap[destination.droppableId] || "pending";
 
     try {
       setLoading(true);
-      
-      // Optimistically update UI
-      const updatedTasks = tasks.map(t => {
+      const updatedTasks = tasks.map((t) => {
         if (t._id === draggableId) {
           return { ...t, status: newStatus };
         }
@@ -177,19 +189,23 @@ export default function Dashboard() {
       });
       setTasks(updatedTasks);
 
-      // Update in backend
-      await axios.put(`http://localhost:5000/api/tasks/${draggableId}`, {
-        status: newStatus,
-      });
-      
-      toast.success(`Task moved to ${columns.find(c => c.id === destination.droppableId).title}`);
-      
-      // Refresh to get latest state
+      await axios.patch(
+        `http://localhost:5000/api/tasks/${draggableId}/status`,
+        {
+          status: newStatus,
+        }
+      );
+
+      toast.success(
+        `Task moved to ${
+          columns.find((c) => c.id === destination.droppableId).title
+        }`
+      );
       await fetchTasks();
     } catch (err) {
-      toast.error('Failed to update task status. Please try again.');
-      console.error('Error updating task status:', err);
-      fetchTasks(); // Revert to server state
+      toast.error("Failed to update task status. Please try again.");
+      console.error("Error updating task status:", err);
+      fetchTasks();
     } finally {
       setLoading(false);
     }
@@ -199,21 +215,23 @@ export default function Dashboard() {
   const handleSubmit = async (taskData) => {
     try {
       setLoading(true);
-      
       if (editingTask) {
-        await axios.put(`http://localhost:5000/api/tasks/${editingTask._id}`, taskData);
-        toast.success('Task updated successfully!');
+        await axios.put(
+          `http://localhost:5000/api/tasks/${editingTask._id}`,
+          taskData
+        );
+        toast.success("Task updated successfully!");
       } else {
-        await axios.post('http://localhost:5000/api/tasks', taskData);
-        toast.success('Task created successfully!');
+        await axios.post("http://localhost:5000/api/tasks", taskData);
+        toast.success("Task created successfully!");
       }
-      
       await fetchTasks();
       handleCloseDialog();
     } catch (err) {
-      console.error('Error saving task:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Failed to save task. Please try again.';
-      toast.error(errorMessage);
+      console.error("Error saving task:", err);
+      toast.error(
+        err.response?.data?.message || "Failed to save task. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -224,11 +242,11 @@ export default function Dashboard() {
     try {
       setLoading(true);
       await axios.delete(`http://localhost:5000/api/tasks/${taskId}`);
-      toast.success('Task deleted successfully!');
-      fetchTasks();
+      toast.success("Task deleted successfully!");
+      await fetchTasks();
     } catch (err) {
-      toast.error('Failed to delete task. Please try again.');
-      console.error('Error deleting task:', err);
+      toast.error("Failed to delete task. Please try again.");
+      console.error("Error deleting task:", err);
     } finally {
       setLoading(false);
     }
@@ -247,25 +265,24 @@ export default function Dashboard() {
 
   // Filter tasks by status
   const getTasksByStatus = (status) => {
-    return tasks.filter(task => {
+    return tasks.filter((task) => {
       const dueDate = new Date(task.dueDate);
       const now = new Date();
       const isToday = dueDate.toDateString() === now.toDateString();
       const isPast = dueDate < now;
-      
+
       switch (status) {
-        case 'completed':
-          return task.status === 'completed';
-        case 'overdue':
-          return isPast && !isToday && task.status !== 'completed';
-        case 'dueToday':
-          return isToday && task.status !== 'completed';
-        case 'pending':
-          // Show in pending if:
-          // 1. Status is pending OR
-          // 2. Not completed AND not overdue AND not due today
-          return (task.status === 'pending' || 
-                 (!isPast && !isToday && task.status !== 'completed'));
+        case "completed":
+          return task.status === "completed";
+        case "overdue":
+          return isPast && !isToday && task.status !== "completed";
+        case "dueToday":
+          return isToday && task.status !== "completed";
+        case "pending":
+          return (
+            task.status === "pending" ||
+            (!isPast && !isToday && task.status !== "completed")
+          );
         default:
           return false;
       }
@@ -276,11 +293,10 @@ export default function Dashboard() {
   const handleStatusChange = async (taskId, newStatus) => {
     try {
       setLoading(true);
-      const task = tasks.find(t => t._id === taskId);
+      const task = tasks.find((t) => t._id === taskId);
       if (!task) return;
 
-      // Optimistically update UI
-      const updatedTasks = tasks.map(t => {
+      const updatedTasks = tasks.map((t) => {
         if (t._id === taskId) {
           return { ...t, status: newStatus };
         }
@@ -288,35 +304,32 @@ export default function Dashboard() {
       });
       setTasks(updatedTasks);
 
-      // Update in backend
       await axios.patch(`http://localhost:5000/api/tasks/${taskId}/status`, {
         status: newStatus,
       });
-      
+
       toast.success(`Task marked as ${newStatus}`);
-      
-      // Refresh to get latest state
       await fetchTasks();
     } catch (err) {
-      toast.error('Failed to update task status. Please try again.');
-      console.error('Error updating task status:', err);
-      fetchTasks(); // Revert to server state
+      toast.error("Failed to update task status. Please try again.");
+      console.error("Error updating task status:", err);
+      fetchTasks();
     } finally {
       setLoading(false);
     }
   };
 
   const columns = [
-    { id: 'dueToday', title: 'Due Today', color: theme.palette.warning.light },
-    { id: 'pending', title: 'Pending', color: theme.palette.info.light },
-    { id: 'completed', title: 'Completed', color: theme.palette.success.light },
-    { id: 'overdue', title: 'Overdue', color: theme.palette.error.light },
+    { id: "dueToday", title: "Due Today", color: theme.palette.warning.light },
+    { id: "pending", title: "Pending", color: theme.palette.info.light },
+    { id: "completed", title: "Completed", color: theme.palette.success.light },
+    { id: "overdue", title: "Overdue", color: theme.palette.error.light },
   ];
 
   return (
     <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <Box>
-        <Toaster 
+        <Toaster
           position="top-right"
           toastOptions={{
             success: {
@@ -324,31 +337,54 @@ export default function Dashboard() {
                 background: theme.palette.success.light,
                 color: theme.palette.success.contrastText,
               },
-              icon: '✅',
+              icon: "✅",
             },
             error: {
               style: {
                 background: theme.palette.error.light,
                 color: theme.palette.error.contrastText,
               },
-              icon: '❌',
+              icon: "❌",
             },
             duration: 3000,
           }}
         />
 
         {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 3,
+          }}
+        >
           <Typography variant="h4" sx={{ fontWeight: 600 }}>
             Task Dashboard
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Box sx={{ display: "flex", gap: 2 }}>
             <Button
               variant="outlined"
-              startIcon={<NotificationsIcon color={notifications.some(n => !n.read) ? "primary" : "inherit"} />}
+              startIcon={<NotificationsIcon />}
               onClick={() => setOpenNotificationSettings(true)}
             >
-              Notifications {notifications.filter(n => !n.read).length > 0 && `(${notifications.filter(n => !n.read).length})`}
+              Settings
+            </Button>
+            <Button
+              variant="outlined"
+              color={notifications.some((n) => !n.read) ? "primary" : "inherit"}
+              startIcon={
+                <NotificationsIcon
+                  color={
+                    notifications.some((n) => !n.read) ? "primary" : "inherit"
+                  }
+                />
+              }
+              onClick={() => setOpenNotificationList(true)}
+            >
+              Notifications{" "}
+              {notifications.filter((n) => !n.read).length > 0 &&
+                `(${notifications.filter((n) => !n.read).length})`}
             </Button>
             <Button
               variant="outlined"
@@ -374,14 +410,14 @@ export default function Dashboard() {
 
         {/* Loading Indicator */}
         {loading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          <Box sx={{ display: "flex", justifyContent: "center", mb: 3 }}>
             <CircularProgress />
           </Box>
         )}
 
         {/* Task Columns */}
         <Grid container spacing={3}>
-          {columns.map(column => (
+          {columns.map((column) => (
             <Grid item xs={12} md={6} lg={3} key={column.id}>
               <TaskColumn
                 column={column}
@@ -403,12 +439,18 @@ export default function Dashboard() {
           loading={loading}
         />
 
+        {/* Notification List Dialog */}
+        <NotificationList
+          open={openNotificationList}
+          onClose={() => setOpenNotificationList(false)}
+          notifications={notifications}
+          onNotificationRead={handleNotificationRead}
+        />
+
         {/* Notification Settings Dialog */}
         <NotificationSettings
           open={openNotificationSettings}
           onClose={() => setOpenNotificationSettings(false)}
-          notifications={notifications}
-          onNotificationRead={handleNotificationRead}
         />
       </Box>
     </DragDropContext>
