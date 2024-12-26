@@ -1,4 +1,4 @@
-# Task Manager Pro
+# NameKartAssignment
 
 A modern task management application with real-time notifications, AI-powered insights using Google's Gemini AI, and an intuitive drag-and-drop interface.
 
@@ -77,8 +77,8 @@ To use this feature:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/task-manager-pro.git
-cd task-manager-pro
+git clone https://github.com/AshwinJharia/NameKartAssignment.git
+cd NameKartAssignment
 ```
 
 2. Install backend dependencies:
@@ -141,7 +141,7 @@ The application should now be running at:
 ## Project Structure
 
 ```
-task-manager-pro/
+NameKartAssignment/
 ├── backend/
 │   ├── controllers/
 │   ├── models/
@@ -164,7 +164,7 @@ task-manager-pro/
 2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
 3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+5. Open a Pull Request to the [NameKartAssignment repository](https://github.com/AshwinJharia/NameKartAssignment)
 
 ## License
 
