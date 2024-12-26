@@ -171,3 +171,52 @@ NameKartAssignment/
 - Material-UI for the beautiful components
 - React Beautiful DnD for the drag-and-drop functionality
 - Google's Gemini AI for intelligent task insights 
+
+## Deployment on Render
+
+### Prerequisites for Deployment
+1. Create a [Render](https://render.com) account
+2. Create a MongoDB Atlas cluster (for production database)
+
+### Steps to Deploy
+
+1. **Prepare MongoDB Atlas:**
+   - Create a free cluster on [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+   - Create a database user and get your connection string
+   - Whitelist all IP addresses (0.0.0.0/0) for initial testing
+
+2. **Deploy to Render:**
+   - Fork this repository to your GitHub account
+   - Go to your Render dashboard
+   - Click on "New +" and select "Web Service"
+   - Connect your GitHub repository
+   - Configure the service:
+     - Name: `namekart-task-manager-backend`
+     - Environment: `Node`
+     - Build Command: `cd backend && npm install`
+     - Start Command: `cd backend && node server.js`
+     - Select the branch to deploy
+
+3. **Set Environment Variables:**
+   Add the following environment variables in Render dashboard:
+   - `MONGODB_URI`: Your MongoDB Atlas connection string
+   - `JWT_SECRET`: Your secret key for JWT
+   - `GEMINI_API_KEY`: Your Gemini AI API key
+   - `NODE_ENV`: `production`
+   - `PORT`: `10000`
+
+4. **Update Frontend Configuration:**
+   Update your frontend `.env` file to point to the Render backend:
+   ```env
+   VITE_API_URL=https://your-render-service-url
+   ```
+
+5. **Deploy Updates:**
+   - Any push to the main branch will automatically trigger a new deployment
+   - Monitor the deployment in Render dashboard
+
+### Troubleshooting Deployment
+- Check Render logs for any deployment errors
+- Ensure all environment variables are set correctly
+- Verify MongoDB Atlas connection string and network access
+- Check if the service is running on the correct port 
