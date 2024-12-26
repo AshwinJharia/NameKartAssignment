@@ -11,17 +11,18 @@ import {
   Add as AddIcon,
   TrendingUp as InsightIcon,
   Notifications as NotificationsIcon,
-} from '@mui/icons-material';
-import { DragDropContext } from 'react-beautiful-dnd';
-import axios from 'axios';
-import toast, { Toaster } from 'react-hot-toast';
-import io from 'socket.io-client';
+  Settings as SettingsIcon,
+} from "@mui/icons-material";
+import { DragDropContext } from "react-beautiful-dnd";
+import toast, { Toaster } from "react-hot-toast";
+import io from "socket.io-client";
 
-import TaskColumn from '../components/TaskColumn';
-import TaskForm from '../components/TaskForm';
-import AiInsightPanel from '../components/AiInsightPanel';
-import NotificationSettings from '../components/NotificationSettings';
+import TaskColumn from "../components/TaskColumn";
+import TaskForm from "../components/TaskForm";
+import AiInsightPanel from "../components/AiInsightPanel";
+import NotificationSettings from "../components/NotificationSettings";
 import NotificationList from "../components/NotificationList";
+import api, { VITE_API_URL } from "../config/api";
 
 export default function Dashboard() {
   const theme = useTheme();
@@ -35,26 +36,43 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState([]);
   const [openNotificationList, setOpenNotificationList] = useState(false);
   const [socket, setSocket] = useState(null);
+  const [settings, setSettings] = useState(null);
 
   // Initialize socket connection
   useEffect(() => {
-    const newSocket = io("http://localhost:5000", {
+    const newSocket = io(VITE_API_URL, {
       transports: ["websocket"],
       upgrade: false,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
     newSocket.on("connect", () => {
       console.log("Connected to socket server");
+      toast.success("Connected to notification server");
     });
 
     newSocket.on("connect_error", (error) => {
       console.error("Socket connection error:", error);
+      toast.error("Failed to connect to notification server. Retrying...");
+    });
+
+    newSocket.on("disconnect", (reason) => {
+      console.log("Disconnected from socket server:", reason);
+      if (reason === "io server disconnect") {
+        // the disconnection was initiated by the server, reconnect manually
+        newSocket.connect();
+      }
+      // else the socket will automatically try to reconnect
     });
 
     setSocket(newSocket);
 
     return () => {
-      if (newSocket) newSocket.disconnect();
+      if (newSocket) {
+        newSocket.disconnect();
+      }
     };
   }, []);
 
@@ -84,9 +102,7 @@ export default function Dashboard() {
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     try {
-      const response = await axios.get(
-        "http://localhost:5000/api/notifications"
-      );
+      const response = await api.get("/api/notifications");
       setNotifications(response.data);
     } catch (err) {
       console.error("Error fetching notifications:", err);
@@ -101,9 +117,7 @@ export default function Dashboard() {
   // Mark notification as read
   const handleNotificationRead = async (notificationId) => {
     try {
-      await axios.patch(
-        `http://localhost:5000/api/notifications/${notificationId}/read`
-      );
+      await api.patch(`/api/notifications/${notificationId}/read`);
       setNotifications((prev) =>
         prev.map((n) => (n._id === notificationId ? { ...n, read: true } : n))
       );
@@ -116,7 +130,7 @@ export default function Dashboard() {
   const fetchTasks = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get("http://localhost:5000/api/tasks");
+      const response = await api.get("/api/tasks");
       setTasks(response.data);
     } catch (err) {
       toast.error("Failed to fetch tasks. Please try again.");
@@ -134,9 +148,7 @@ export default function Dashboard() {
   const getAiInsights = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(
-        "http://localhost:5000/api/tasks/insights"
-      );
+      const response = await api.get("/api/tasks/insights");
       setAiInsight(response.data);
       toast.success("AI insights updated successfully!");
     } catch (err) {
@@ -189,12 +201,9 @@ export default function Dashboard() {
       });
       setTasks(updatedTasks);
 
-      await axios.patch(
-        `http://localhost:5000/api/tasks/${draggableId}/status`,
-        {
-          status: newStatus,
-        }
-      );
+      await api.patch(`/api/tasks/${draggableId}/status`, {
+        status: newStatus,
+      });
 
       toast.success(
         `Task moved to ${
@@ -216,16 +225,21 @@ export default function Dashboard() {
     try {
       setLoading(true);
       if (editingTask) {
-        await axios.put(
-          `http://localhost:5000/api/tasks/${editingTask._id}`,
-          taskData
-        );
+        // Update existing task
+        await api.put(`/api/tasks/${editingTask._id}`, {
+          ...taskData,
+          status: editingTask.status, // Preserve the current status
+        });
         toast.success("Task updated successfully!");
       } else {
-        await axios.post("http://localhost:5000/api/tasks", taskData);
+        // Create new task
+        await api.post("/api/tasks", {
+          ...taskData,
+          status: "pending", // Default status for new tasks
+        });
         toast.success("Task created successfully!");
       }
-      await fetchTasks();
+      await fetchTasks(); // Refresh the task list
       handleCloseDialog();
     } catch (err) {
       console.error("Error saving task:", err);
@@ -241,7 +255,7 @@ export default function Dashboard() {
   const handleDeleteTask = async (taskId) => {
     try {
       setLoading(true);
-      await axios.delete(`http://localhost:5000/api/tasks/${taskId}`);
+      await api.delete(`/api/tasks/${taskId}`);
       toast.success("Task deleted successfully!");
       await fetchTasks();
     } catch (err) {
@@ -263,31 +277,41 @@ export default function Dashboard() {
     setEditingTask(null);
   };
 
-  // Filter tasks by status
-  const getTasksByStatus = (status) => {
-    return tasks.filter((task) => {
-      const dueDate = new Date(task.dueDate);
+  // Get tasks by status
+  const getTasksByStatus = useCallback(
+    (status) => {
       const now = new Date();
-      const isToday = dueDate.toDateString() === now.toDateString();
-      const isPast = dueDate < now;
+      return tasks.filter((task) => {
+        const dueDate = new Date(task.dueDate);
 
-      switch (status) {
-        case "completed":
-          return task.status === "completed";
-        case "overdue":
-          return isPast && !isToday && task.status !== "completed";
-        case "dueToday":
-          return isToday && task.status !== "completed";
-        case "pending":
-          return (
-            task.status === "pending" ||
-            (!isPast && !isToday && task.status !== "completed")
-          );
-        default:
-          return false;
-      }
-    });
-  };
+        switch (status) {
+          case "completed":
+            return task.status === "completed";
+
+          case "overdue":
+            return task.status !== "completed" && dueDate < now;
+
+          case "dueToday":
+            return (
+              task.status !== "completed" &&
+              dueDate >= now &&
+              dueDate.toDateString() === now.toDateString()
+            );
+
+          case "pending":
+            return (
+              task.status === "pending" &&
+              dueDate >= now &&
+              dueDate.toDateString() !== now.toDateString()
+            );
+
+          default:
+            return false;
+        }
+      });
+    },
+    [tasks]
+  );
 
   // Handle task status change
   const handleStatusChange = async (taskId, newStatus) => {
@@ -304,7 +328,7 @@ export default function Dashboard() {
       });
       setTasks(updatedTasks);
 
-      await axios.patch(`http://localhost:5000/api/tasks/${taskId}/status`, {
+      await api.patch(`/api/tasks/${taskId}/status`, {
         status: newStatus,
       });
 
@@ -325,6 +349,21 @@ export default function Dashboard() {
     { id: "completed", title: "Completed", color: theme.palette.success.light },
     { id: "overdue", title: "Overdue", color: theme.palette.error.light },
   ];
+
+  // Fetch notification settings on mount
+  useEffect(() => {
+    const fetchNotificationSettings = async () => {
+      try {
+        const response = await api.get("/api/users/notification-settings");
+        setSettings(response.data);
+      } catch (err) {
+        console.error("Error fetching notification settings:", err);
+        toast.error("Failed to load notification settings");
+      }
+    };
+
+    fetchNotificationSettings();
+  }, []);
 
   return (
     <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -365,10 +404,10 @@ export default function Dashboard() {
           <Box sx={{ display: "flex", gap: 2 }}>
             <Button
               variant="outlined"
-              startIcon={<NotificationsIcon />}
               onClick={() => setOpenNotificationSettings(true)}
+              startIcon={<SettingsIcon />}
             >
-              Settings
+              Notification Settings
             </Button>
             <Button
               variant="outlined"

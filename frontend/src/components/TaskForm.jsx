@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -12,64 +12,75 @@ import {
   MenuItem,
   Stack,
   CircularProgress,
-} from '@mui/material';
-import { DateTimePicker } from '@mui/x-date-pickers';
+} from "@mui/material";
+import { DateTimePicker } from "@mui/x-date-pickers";
 
-export default function TaskForm({ open, onClose, onSubmit, initialData, loading }) {
+export default function TaskForm({
+  open,
+  onClose,
+  onSubmit,
+  initialData,
+  loading,
+}) {
   const [formData, setFormData] = useState({
-    title: initialData?.title || '',
-    description: initialData?.description || '',
-    priority: initialData?.priority || 'medium',
-    dueDate: initialData?.dueDate ? new Date(initialData.dueDate) : new Date(),
-    status: initialData?.status || 'pending'
+    title: initialData?.title || "",
+    description: initialData?.description || "",
+    priority: initialData?.priority || "medium",
+    dueDate: initialData?.dueDate ? new Date(initialData.dueDate) : null,
   });
+
+  useEffect(() => {
+    if (open) {
+      if (initialData) {
+        setFormData({
+          title: initialData.title,
+          description: initialData.description || "",
+          priority: initialData.priority,
+          dueDate: initialData.dueDate ? new Date(initialData.dueDate) : null,
+        });
+      } else {
+        setFormData({
+          title: "",
+          description: "",
+          priority: "medium",
+          dueDate: null,
+        });
+      }
+    }
+  }, [open, initialData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleDateChange = (newDate) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      dueDate: newDate
+      dueDate: newDate,
     }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.title || !formData.dueDate) return;
-
-    const taskData = {
+    onSubmit({
       ...formData,
-      dueDate: formData.dueDate.toISOString(),
-    };
-
-    await onSubmit(taskData);
-    
-    if (!initialData) {
-      setFormData({
-        title: '',
-        description: '',
-        priority: 'medium',
-        dueDate: new Date(),
-        status: 'pending'
-      });
-    }
+      dueDate: formData.dueDate ? formData.dueDate.toISOString() : null,
+    });
   };
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onClose={loading ? undefined : onClose}
-      maxWidth="sm" 
+      maxWidth="sm"
       fullWidth
     >
       <form onSubmit={handleSubmit}>
-        <DialogTitle>{initialData ? 'Edit Task' : 'Add New Task'}</DialogTitle>
+        <DialogTitle>{initialData ? "Edit Task" : "Add New Task"}</DialogTitle>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
             <TextField
@@ -82,10 +93,10 @@ export default function TaskForm({ open, onClose, onSubmit, initialData, loading
               required
               disabled={loading}
               inputProps={{
-                maxLength: 100
+                maxLength: 100,
               }}
             />
-            
+
             <TextField
               name="description"
               label="Description"
@@ -96,7 +107,7 @@ export default function TaskForm({ open, onClose, onSubmit, initialData, loading
               onChange={handleChange}
               disabled={loading}
               inputProps={{
-                maxLength: 500
+                maxLength: 500,
               }}
             />
 
@@ -124,8 +135,8 @@ export default function TaskForm({ open, onClose, onSubmit, initialData, loading
                 textField: {
                   required: true,
                   fullWidth: true,
-                  disabled: loading
-                }
+                  disabled: loading,
+                },
               }}
               minDateTime={new Date()}
               disabled={loading}
@@ -136,22 +147,24 @@ export default function TaskForm({ open, onClose, onSubmit, initialData, loading
           <Button onClick={onClose} disabled={loading}>
             Cancel
           </Button>
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             variant="contained"
             disabled={!formData.title || !formData.dueDate || loading}
           >
             {loading ? (
               <>
                 <CircularProgress size={20} sx={{ mr: 1 }} />
-                {initialData ? 'Updating...' : 'Adding...'}
+                {initialData ? "Updating..." : "Adding..."}
               </>
+            ) : initialData ? (
+              "Update Task"
             ) : (
-              initialData ? 'Update Task' : 'Add Task'
+              "Add Task"
             )}
           </Button>
         </DialogActions>
       </form>
     </Dialog>
   );
-} 
+}

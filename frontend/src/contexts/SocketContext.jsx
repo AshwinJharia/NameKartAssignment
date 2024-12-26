@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { VITE_API_URL } from "../config/api";
 
 const SocketContext = createContext();
 
@@ -15,22 +16,22 @@ export function SocketProvider({ children }) {
 
   useEffect(() => {
     if (user) {
-      const newSocket = io('http://localhost:5000', {
+      const newSocket = io(VITE_API_URL, {
         auth: {
-          token: localStorage.getItem('token'),
+          token: localStorage.getItem("token"),
         },
       });
 
-      newSocket.on('connect', () => {
-        console.log('Connected to WebSocket server');
+      newSocket.on("connect", () => {
+        console.log("Connected to WebSocket server");
       });
 
-      newSocket.on('notification', (notification) => {
+      newSocket.on("notification", (notification) => {
         setNotifications((prev) => [notification, ...prev]);
       });
 
-      newSocket.on('disconnect', () => {
-        console.log('Disconnected from WebSocket server');
+      newSocket.on("disconnect", () => {
+        console.log("Disconnected from WebSocket server");
       });
 
       setSocket(newSocket);

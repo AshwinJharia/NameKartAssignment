@@ -14,28 +14,36 @@ import {
   useTheme,
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
-import { useState } from "react";
-import axios from "axios";
+import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
+import api from "../config/api";
 
 export default function NotificationSettings({ open, onClose }) {
   const theme = useTheme();
   const [settings, setSettings] = useState({
     enabled: true,
-    highPriority: true,
-    mediumPriority: true,
-    lowPriority: false,
-    reminderHours: 24,
+    priorities: ["high", "medium"],
+    reminderTime: 2,
   });
   const [loading, setLoading] = useState(false);
+
+  // Fetch current settings when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetchSettings();
+    }
+  }, [open]);
 
   // Fetch current settings
   const fetchSettings = async () => {
     try {
-      const response = await axios.get(
-        "http://localhost:5000/api/users/notification-settings"
-      );
-      setSettings(response.data);
+      const response = await api.get("/api/users/notification-settings");
+      const data = response.data;
+      setSettings({
+        enabled: data.enabled,
+        priorities: data.priorities || ["high", "medium"],
+        reminderTime: data.reminderTime || 2,
+      });
     } catch (err) {
       console.error("Error fetching notification settings:", err);
       toast.error("Failed to load notification settings");
@@ -46,10 +54,7 @@ export default function NotificationSettings({ open, onClose }) {
   const handleSave = async () => {
     try {
       setLoading(true);
-      await axios.put(
-        "http://localhost:5000/api/users/notification-settings",
-        settings
-      );
+      await api.put("/api/users/notification-settings", settings);
       toast.success("Notification settings saved successfully");
       onClose();
     } catch (err) {
@@ -61,12 +66,19 @@ export default function NotificationSettings({ open, onClose }) {
   };
 
   const handleChange = (name) => (event) => {
+    if (name === "enabled") {
+      setSettings((prev) => ({ ...prev, enabled: event.target.checked }));
+    } else if (name === "reminderTime") {
+      setSettings((prev) => ({ ...prev, reminderTime: event.target.value }));
+    }
+  };
+
+  const handlePriorityChange = (priority) => (event) => {
     setSettings((prev) => ({
       ...prev,
-      [name]:
-        event.target.checked !== undefined
-          ? event.target.checked
-          : event.target.value,
+      priorities: event.target.checked
+        ? [...prev.priorities, priority]
+        : prev.priorities.filter((p) => p !== priority),
     }));
   };
 
@@ -106,8 +118,8 @@ export default function NotificationSettings({ open, onClose }) {
           <FormControlLabel
             control={
               <Switch
-                checked={settings.highPriority}
-                onChange={handleChange("highPriority")}
+                checked={settings.priorities.includes("high")}
+                onChange={handlePriorityChange("high")}
                 color="error"
                 disabled={!settings.enabled}
               />
@@ -118,8 +130,8 @@ export default function NotificationSettings({ open, onClose }) {
           <FormControlLabel
             control={
               <Switch
-                checked={settings.mediumPriority}
-                onChange={handleChange("mediumPriority")}
+                checked={settings.priorities.includes("medium")}
+                onChange={handlePriorityChange("medium")}
                 color="warning"
                 disabled={!settings.enabled}
               />
@@ -130,8 +142,8 @@ export default function NotificationSettings({ open, onClose }) {
           <FormControlLabel
             control={
               <Switch
-                checked={settings.lowPriority}
-                onChange={handleChange("lowPriority")}
+                checked={settings.priorities.includes("low")}
+                onChange={handlePriorityChange("low")}
                 color="info"
                 disabled={!settings.enabled}
               />
@@ -140,13 +152,13 @@ export default function NotificationSettings({ open, onClose }) {
           />
 
           <Typography variant="subtitle1" sx={{ mt: 2, mb: 1 }}>
-            Reminder Time
+            Reminder Time (hours before due date)
           </Typography>
 
           <Box sx={{ px: 2 }}>
             <Slider
-              value={settings.reminderHours}
-              onChange={handleChange("reminderHours")}
+              value={settings.reminderTime}
+              onChange={handleChange("reminderTime")}
               min={1}
               max={48}
               step={1}
@@ -163,9 +175,11 @@ export default function NotificationSettings({ open, onClose }) {
         </FormGroup>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose} disabled={loading}>
+          Cancel
+        </Button>
         <Button onClick={handleSave} variant="contained" disabled={loading}>
-          Save Changes
+          {loading ? "Saving..." : "Save Changes"}
         </Button>
       </DialogActions>
     </Dialog>
